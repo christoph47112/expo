@@ -12,17 +12,25 @@ from threading import RLock
 _lock = RLock()
 
 # Seitentitel und Konfiguration
-st.set_page_config(page_title="Exponentielle Glättung 1. Ordnung", layout="wide")
+st.set_page_config(
+    page_title="Exponentielle Glättung 1. Ordnung", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# CSS für besseres Aussehen
+# CSS für besseres Aussehen und optimiertes Layout
 st.markdown("""
 <style>
     .main {
-        padding: 2rem;
+        padding: 1rem 1rem;
+    }
+    .block-container {
+        padding-top: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
     }
     .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
+        max-width: 100%;
     }
     h1, h2, h3 {
         margin-bottom: 1rem;
@@ -50,6 +58,21 @@ st.markdown("""
         border-radius: 0.5rem;
         padding: 1rem;
         margin-bottom: 1rem;
+    }
+    /* Sidebar-Anpassung */
+    .css-1d391kg, .css-1lcbmhc {
+        width: 18rem !important;
+    }
+    /* Volle Breite für den Hauptinhalt */
+    .css-18e3th9 {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    /* Optimiertes Layout für mobile Geräte */
+    @media (max-width: 768px) {
+        .css-1d391kg, .css-1lcbmhc {
+            width: 14rem !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -157,7 +180,7 @@ if 'show_grid' not in st.session_state:
 if 'download_format' not in st.session_state:
     st.session_state.download_format = "CSV"
 
-# Sidebar für Datei-Upload und Parameter
+# Kompaktere Sidebar für Datei-Upload und Parameter
 with st.sidebar:
     st.header("Daten hochladen")
     uploaded_file = st.file_uploader("Zeitreihendaten hochladen", type=["csv", "xlsx", "xls"])
@@ -170,16 +193,12 @@ with st.sidebar:
             else:  # Excel-Dateien
                 st.session_state.df = pd.read_excel(uploaded_file)
             
-            st.success(f"Datei erfolgreich geladen: {uploaded_file.name}")
+            st.success(f"Datei erfolgreich geladen")
             
-            # Informationen über die geladenen Daten
-            st.markdown("### Datenübersicht")
-            st.write(f"Anzahl der Zeilen: {st.session_state.df.shape[0]}")
-            st.write(f"Anzahl der Spalten: {st.session_state.df.shape[1]}")
-            
-            # Kleine Vorschau der Daten
-            st.markdown("### Datenvorschau")
-            st.dataframe(st.session_state.df.head(3))
+            # Kompaktere Datenvorschau
+            with st.expander("Datenübersicht"):
+                st.write(f"Zeilen: {st.session_state.df.shape[0]} | Spalten: {st.session_state.df.shape[1]}")
+                st.dataframe(st.session_state.df.head(3), height=150)
         
         except Exception as e:
             st.error(f"Fehler beim Laden der Datei: {e}")
@@ -240,28 +259,28 @@ with st.sidebar:
             help="Niedrigere Werte (nahe 0) glätten stärker, höhere Werte (nahe 1) folgen den Originaldaten enger."
         )
         
-        # Optionen für das Diagramm
-        st.header("Diagramm-Optionen")
-        st.session_state.chart_height = st.slider(
-            "Diagrammhöhe", 
-            300, 800, 
-            st.session_state.chart_height, 
-            50
-        )
-        st.session_state.show_grid = st.checkbox(
-            "Gitter anzeigen", 
-            st.session_state.show_grid
-        )
+        # Optionen für das Diagramm in einen Expander auslagern
+        with st.expander("Diagramm-Optionen"):
+            st.session_state.chart_height = st.slider(
+                "Diagrammhöhe", 
+                300, 800, 
+                st.session_state.chart_height, 
+                50
+            )
+            st.session_state.show_grid = st.checkbox(
+                "Gitter anzeigen", 
+                st.session_state.show_grid
+            )
         
         # Download-Optionen
-        st.header("Download-Optionen")
-        st.session_state.download_format = st.radio(
-            "Format", 
-            ["CSV", "Excel"],
-            index=0 if st.session_state.download_format == "CSV" else 1
-        )
+        with st.expander("Download-Optionen"):
+            st.session_state.download_format = st.radio(
+                "Format", 
+                ["CSV", "Excel"],
+                index=0 if st.session_state.download_format == "CSV" else 1
+            )
 
-# Hauptbereich - nur anzeigen, wenn Daten und Spalten ausgewählt wurden
+# Hauptbereich - optimal für den verfügbaren Platz genutzt
 if st.session_state.df is not None and st.session_state.value_col is not None:
     try:
         df = st.session_state.df.copy()
@@ -309,8 +328,8 @@ if st.session_state.df is not None and st.session_state.value_col is not None:
         # Fehler berechnen
         errors = calculate_error_metrics(original_data[1:], one_step_forecast[1:])
         
-        # Layout mit Spalten
-        col1, col2 = st.columns([3, 1])
+        # Optimiertes Layout mit angepassten Spaltenbreiten
+        col1, col2 = st.columns([7, 3])
         
         with col1:
             # Diagramm
@@ -361,7 +380,7 @@ if st.session_state.df is not None and st.session_state.value_col is not None:
             formatted_result_df['Vorhersage (t+1)'] = formatted_result_df['Vorhersage (t+1)'].round(2)
             
             # Tabelle anzeigen
-            st.dataframe(formatted_result_df, height=400)
+            st.dataframe(formatted_result_df, height=400, use_container_width=True)
             
             # Download-Links
             st.markdown("### Ergebnisse herunterladen")
@@ -393,11 +412,13 @@ if st.session_state.df is not None and st.session_state.value_col is not None:
             # Fehlermetriken
             st.header("Fehlermetriken")
             
-            for metric, value in errors.items():
-                st.metric(
-                    label=metric,
-                    value=f"{value:.2f}" + ("%" if metric == "MAPE" else "")
-                )
+            metrics_cols = st.columns(2)
+            for i, (metric, value) in enumerate(errors.items()):
+                with metrics_cols[i % 2]:
+                    st.metric(
+                        label=metric,
+                        value=f"{value:.2f}" + ("%" if metric == "MAPE" else "")
+                    )
             
             # Prognose für den nächsten Zeitpunkt
             st.header("Prognose")
@@ -443,53 +464,56 @@ if st.session_state.df is not None and st.session_state.value_col is not None:
 
 # Fügt ein README hinzu, wenn keine Daten geladen wurden
 else:
-    st.markdown("""
-    ## Anleitung zur Verwendung
+    # Zweispalten-Layout für das Intro
+    intro_col1, intro_col2 = st.columns([3, 2])
     
-    Diese App berechnet die exponentielle Glättung 1. Ordnung für Zeitreihendaten und bietet:
+    with intro_col1:
+        st.markdown("""
+        ## Anleitung zur Verwendung
+        
+        Diese App berechnet die exponentielle Glättung 1. Ordnung für Zeitreihendaten und bietet:
+        
+        1. **Datenanalyse**: Laden Sie Ihre CSV- oder Excel-Datei hoch
+        2. **Parameterkonfiguration**: Wählen Sie die relevanten Spalten und den Glättungsfaktor
+        3. **Visualisierung**: Sehen Sie die Originaldaten und geglätteten Werte im Diagramm
+        4. **Fehlermetriken**: Bewerten Sie die Qualität der Glättung anhand verschiedener Metriken
+        5. **Prognose**: Erhalten Sie eine Vorhersage für den nächsten Zeitpunkt
+        6. **Export**: Laden Sie die Ergebnisse als CSV oder Excel herunter
+        
+        ### Über exponentielle Glättung
+        
+        Die exponentielle Glättung 1. Ordnung ist ein Verfahren zur Glättung von Zeitreihen und zur Vorhersage zukünftiger Werte. Sie gewichtet neuere Beobachtungen stärker als ältere, wobei der Glättungsfaktor α bestimmt, wie stark diese Gewichtung ausfällt.
+        """)
     
-    1. **Datenanalyse**: Laden Sie Ihre CSV- oder Excel-Datei hoch
-    2. **Parameterkonfiguration**: Wählen Sie die relevanten Spalten und den Glättungsfaktor
-    3. **Visualisierung**: Sehen Sie die Originaldaten und geglätteten Werte im Diagramm
-    4. **Fehlermetriken**: Bewerten Sie die Qualität der Glättung anhand verschiedener Metriken
-    5. **Prognose**: Erhalten Sie eine Vorhersage für den nächsten Zeitpunkt
-    6. **Export**: Laden Sie die Ergebnisse als CSV oder Excel herunter
-    
-    ### Beispieldatenformat
-    
-    Ihre Daten sollten in folgendem Format vorliegen:
-    
-    | Datum/Periode | Wert |
-    |--------------|------|
-    | 2023-01      | 100  |
-    | 2023-02      | 120  |
-    | 2023-03      | 90   |
-    | ...          | ...  |
-    
-    Oder:
-    
-    | Jahr | Woche | Menge |
-    |------|-------|-------|
-    | 2023 | 1     | 100   |
-    | 2023 | 2     | 120   |
-    | 2023 | 3     | 90    |
-    | ...  | ...   | ...   |
-    
-    ### Über exponentielle Glättung
-    
-    Die exponentielle Glättung 1. Ordnung ist ein Verfahren zur Glättung von Zeitreihen und zur Vorhersage zukünftiger Werte. Sie gewichtet neuere Beobachtungen stärker als ältere, wobei der Glättungsfaktor α bestimmt, wie stark diese Gewichtung ausfällt.
-    """)
-    
-    # Beispieldaten
-    st.markdown("### Beispieldaten")
-    
-    # Einfache Beispieldaten generieren
-    example_data = pd.DataFrame({
-        'Periode': [f"2023-{i:02d}" for i in range(1, 13)],
-        'Wert': [100, 120, 90, 110, 105, 130, 125, 140, 135, 145, 150, 155]
-    })
-    
-    st.dataframe(example_data)
+    with intro_col2:
+        st.markdown("### Beispieldatenformat")
+        
+        st.markdown("""
+        **Format 1: Mit Datum/Periode**
+        
+        | Datum | Wert |
+        |-------|------|
+        | 2023-01 | 100 |
+        | 2023-02 | 120 |
+        | 2023-03 | 90 |
+        
+        **Format 2: Mit Jahr und Woche**
+        
+        | Jahr | Woche | Menge |
+        |------|-------|-------|
+        | 2023 | 1 | 100 |
+        | 2023 | 2 | 120 |
+        | 2023 | 3 | 90 |
+        """)
+        
+        # Beispieldaten
+        example_data = pd.DataFrame({
+            'Periode': [f"2023-{i:02d}" for i in range(1, 13)],
+            'Wert': [100, 120, 90, 110, 105, 130, 125, 140, 135, 145, 150, 155]
+        })
+        
+        st.markdown("### Beispieldaten")
+        st.dataframe(example_data, use_container_width=True)
 
 # Füge eine Fußzeile hinzu
 st.markdown("---")
