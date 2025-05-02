@@ -141,6 +141,22 @@ def get_download_link(df, filename, text):
     href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
     return href
 
+# Initialisierung von Session State für persistente Daten
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'value_col' not in st.session_state:
+    st.session_state.value_col = None
+if 'date_col' not in st.session_state:
+    st.session_state.date_col = None
+if 'alpha' not in st.session_state:
+    st.session_state.alpha = 0.2
+if 'chart_height' not in st.session_state:
+    st.session_state.chart_height = 500
+if 'show_grid' not in st.session_state:
+    st.session_state.show_grid = True
+if 'download_format' not in st.session_state:
+    st.session_state.download_format = "CSV"
+
 # Sidebar für Datei-Upload und Parameter
 with st.sidebar:
     st.header("Daten hochladen")
@@ -150,82 +166,113 @@ with st.sidebar:
         try:
             # Dateiformat erkennen und einlesen
             if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                st.session_state.df = pd.read_csv(uploaded_file)
             else:  # Excel-Dateien
-                df = pd.read_excel(uploaded_file)
+                st.session_state.df = pd.read_excel(uploaded_file)
             
             st.success(f"Datei erfolgreich geladen: {uploaded_file.name}")
             
             # Informationen über die geladenen Daten
             st.markdown("### Datenübersicht")
-            st.write(f"Anzahl der Zeilen: {df.shape[0]}")
-            st.write(f"Anzahl der Spalten: {df.shape[1]}")
+            st.write(f"Anzahl der Zeilen: {st.session_state.df.shape[0]}")
+            st.write(f"Anzahl der Spalten: {st.session_state.df.shape[1]}")
             
             # Kleine Vorschau der Daten
             st.markdown("### Datenvorschau")
-            st.dataframe(df.head(3))
+            st.dataframe(st.session_state.df.head(3))
         
         except Exception as e:
             st.error(f"Fehler beim Laden der Datei: {e}")
-            df = None
-    else:
-        df = None
+            st.session_state.df = None
     
     # Parameter nur anzeigen, wenn Daten geladen wurden
-    if df is not None:
+    if st.session_state.df is not None:
         st.header("Parameter")
         
         # Spaltenauswahl für Werte
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        date_cols = [col for col in df.columns if any(word in col.lower() for word in ['date', 'zeit', 'jahr', 'monat', 'woche', 'period'])]
+        numeric_cols = st.session_state.df.select_dtypes(include=['number']).columns.tolist()
+        date_cols = [col for col in st.session_state.df.columns if any(word in col.lower() for word in ['date', 'zeit', 'jahr', 'monat', 'woche', 'period'])]
         
-        value_col = st.selectbox(
+        # Sichere Standardwerte festlegen
+        default_value_index = 0
+        if numeric_cols:
+            if st.session_state.value_col is None or st.session_state.value_col not in numeric_cols:
+                st.session_state.value_col = numeric_cols[0]
+            default_value_index = numeric_cols.index(st.session_state.value_col)
+        
+        st.session_state.value_col = st.selectbox(
             "Wertspalte auswählen",
-            options=df.columns,
-            index=numeric_cols[0] if numeric_cols else 0,
+            options=st.session_state.df.columns.tolist(),
+            index=default_value_index if numeric_cols else 0,
             help="Wählen Sie die Spalte mit den zu glättenden Werten aus."
         )
         
         # Optional: Spalte für Zeitperioden
-        date_col = st.selectbox(
+        all_columns = ['Keine (Index verwenden)'] + st.session_state.df.columns.tolist()
+        default_date_index = 0
+        
+        if date_cols:
+            if st.session_state.date_col is None and date_cols:
+                st.session_state.date_col = date_cols[0]
+            
+            if st.session_state.date_col in date_cols:
+                default_date_index = all_columns.index(st.session_state.date_col)
+        
+        selected_date_col = st.selectbox(
             "Datums-/Periodenspalte (optional)",
-            options=['Keine (Index verwenden)'] + df.columns.tolist(),
-            index=0 if not date_cols else df.columns.tolist().index(date_cols[0]) + 1,
+            options=all_columns,
+            index=default_date_index,
             help="Wählen Sie optional eine Spalte für Zeitperioden/Datumsangaben aus."
         )
         
-        if date_col == 'Keine (Index verwenden)':
-            date_col = None
+        if selected_date_col == 'Keine (Index verwenden)':
+            st.session_state.date_col = None
+        else:
+            st.session_state.date_col = selected_date_col
         
         # Glättungsparameter
-        alpha = st.slider(
+        st.session_state.alpha = st.slider(
             "Glättungsfaktor (α)",
             min_value=0.01,
             max_value=0.99,
-            value=0.2,
+            value=st.session_state.alpha,
             step=0.01,
             help="Niedrigere Werte (nahe 0) glätten stärker, höhere Werte (nahe 1) folgen den Originaldaten enger."
         )
         
         # Optionen für das Diagramm
         st.header("Diagramm-Optionen")
-        chart_height = st.slider("Diagrammhöhe", 300, 800, 500, 50)
-        show_grid = st.checkbox("Gitter anzeigen", True)
+        st.session_state.chart_height = st.slider(
+            "Diagrammhöhe", 
+            300, 800, 
+            st.session_state.chart_height, 
+            50
+        )
+        st.session_state.show_grid = st.checkbox(
+            "Gitter anzeigen", 
+            st.session_state.show_grid
+        )
         
         # Download-Optionen
         st.header("Download-Optionen")
-        download_format = st.radio("Format", ["CSV", "Excel"])
+        st.session_state.download_format = st.radio(
+            "Format", 
+            ["CSV", "Excel"],
+            index=0 if st.session_state.download_format == "CSV" else 1
+        )
 
 # Hauptbereich - nur anzeigen, wenn Daten und Spalten ausgewählt wurden
-if df is not None and 'value_col' in locals():
+if st.session_state.df is not None and st.session_state.value_col is not None:
     try:
+        df = st.session_state.df.copy()
+        
         # Daten vorbereiten
-        if date_col:
+        if st.session_state.date_col:
             # Sortieren nach Datum/Periode, wenn ausgewählt
-            df = df.sort_values(by=date_col)
+            df = df.sort_values(by=st.session_state.date_col)
         
         # Originaldaten extrahieren
-        original_data = df[value_col].values
+        original_data = df[st.session_state.value_col].values
         
         # Prüfen, ob alle Werte numerisch sind
         if not np.issubdtype(original_data.dtype, np.number):
@@ -233,18 +280,18 @@ if df is not None and 'value_col' in locals():
             try:
                 original_data = pd.to_numeric(original_data)
             except:
-                st.error(f"Die Spalte '{value_col}' enthält nicht-numerische Werte, die nicht konvertiert werden können.")
+                st.error(f"Die Spalte '{st.session_state.value_col}' enthält nicht-numerische Werte, die nicht konvertiert werden können.")
                 st.stop()
         
         # Exponentielle Glättung berechnen
         with _lock:  # Thread-Lock für Matplotlib
-            smoothed_data = exponential_smoothing(original_data, alpha)
+            smoothed_data = exponential_smoothing(original_data, st.session_state.alpha)
         
         # Ergebnisse in DataFrame speichern
         result_df = pd.DataFrame()
         
-        if date_col:
-            result_df['Periode'] = df[date_col]
+        if st.session_state.date_col:
+            result_df['Periode'] = df[st.session_state.date_col]
         else:
             result_df['Periode'] = range(1, len(original_data) + 1)
         
@@ -270,10 +317,10 @@ if df is not None and 'value_col' in locals():
             st.header("Visualisierung")
             
             with _lock:  # Thread-Lock für Matplotlib
-                fig, ax = plt.subplots(figsize=(10, chart_height/100))
+                fig, ax = plt.subplots(figsize=(10, st.session_state.chart_height/100))
                 
                 # Seaborn-Styling für besseres Aussehen
-                sns.set_style("whitegrid" if show_grid else "white")
+                sns.set_style("whitegrid" if st.session_state.show_grid else "white")
                 
                 # Originaldaten plotten
                 ax.plot(result_df.index, original_data, 'o-', label='Originaldaten', color='#4285F4', markersize=4)
@@ -285,7 +332,7 @@ if df is not None and 'value_col' in locals():
                 ax.plot(result_df.index, one_step_forecast, '--', label='Vorhersage (t+1)', color='#EA4335', alpha=0.7)
                 
                 # X-Achsenbeschriftungen
-                if date_col:
+                if st.session_state.date_col:
                     # Nur jeden n-ten Eintrag zeigen, um Überlappung zu vermeiden
                     n = max(1, len(result_df) // 20)  # Maximal 20 Labels
                     plt.xticks(result_df.index[::n], result_df['Periode'].iloc[::n], rotation=45)
@@ -293,13 +340,13 @@ if df is not None and 'value_col' in locals():
                 # Titel und Labels
                 ax.set_title("Exponentielle Glättung 1. Ordnung", fontsize=14)
                 ax.set_xlabel("Zeitperiode")
-                ax.set_ylabel(value_col)
+                ax.set_ylabel(st.session_state.value_col)
                 
                 # Legende
                 ax.legend()
                 
                 # Grid
-                ax.grid(show_grid)
+                ax.grid(st.session_state.show_grid)
                 
                 # Diagramm anzeigen
                 plt.tight_layout()
@@ -319,9 +366,9 @@ if df is not None and 'value_col' in locals():
             # Download-Links
             st.markdown("### Ergebnisse herunterladen")
             
-            if download_format == "CSV":
+            if st.session_state.download_format == "CSV":
                 st.markdown(get_download_link(formatted_result_df, 
-                                             f"exponentielle_glaettung_alpha_{alpha}.csv",
+                                             f"exponentielle_glaettung_alpha_{st.session_state.alpha}.csv",
                                              "Ergebnisse als CSV herunterladen"), 
                            unsafe_allow_html=True)
             else:  # Excel
@@ -333,13 +380,13 @@ if df is not None and 'value_col' in locals():
                     # Parameter-Blatt
                     params_df = pd.DataFrame({
                         'Parameter': ['Alpha', 'Wertspalte', 'Periodenspalte'],
-                        'Wert': [alpha, value_col, date_col if date_col else 'Index']
+                        'Wert': [st.session_state.alpha, st.session_state.value_col, st.session_state.date_col if st.session_state.date_col else 'Index']
                     })
                     params_df.to_excel(writer, sheet_name="Parameter", index=False)
                 
                 buffer.seek(0)
                 b64 = base64.b64encode(buffer.getvalue()).decode()
-                href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="exponentielle_glaettung_alpha_{alpha}.xlsx">Ergebnisse als Excel herunterladen</a>'
+                href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="exponentielle_glaettung_alpha_{st.session_state.alpha}.xlsx">Ergebnisse als Excel herunterladen</a>'
                 st.markdown(href, unsafe_allow_html=True)
         
         with col2:
